@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">BusWatcher</string>
+    <string name="title_activity_maps">Map</string>
+    <string name="title_activity_main">@string/app_name</string>
+    <string name="filterSearchLabel">Filtrar Busses</string>
+    <string name="showMatricula">Mostrar por matricula</string>
+    <string name="showAll">Mostrar todos</string>
+</resources>
