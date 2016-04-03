@@ -52,7 +52,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private final AtomicBoolean atomicGetAll = new AtomicBoolean(true);
     private final Object postLocker = new Object();
     private final List<String> matriculas = Collections.synchronizedList(new ArrayList<String>());
-    private ProgressBar lineProgres;
     private Thread watchThread = new Thread();
     private GoogleMap googleMap;
     private final Runnable BUS_UPDATER = new Runnable() {
@@ -167,7 +166,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.frag_bus_map);
         mapFragment.getMapAsync(this);
-        lineProgres = (ProgressBar) findViewById(R.id.loadLinesProgres);
         //noinspection ConstantConditions
         findViewById(R.id.menu_add).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -185,37 +183,41 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     public void onClick(View v) {
                         Toast.makeText(MainActivity.this, "ChangeMode", Toast.LENGTH_LONG).show();
                         if (modeAll) {
-                            final EditText input = new EditText(MainActivity.this);
-                            new AlertDialog.Builder(MainActivity.this)
-                                    .setCancelable(true)
-                                    .setView(input)
-                                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                                        @Override
-                                        public void onClick(DialogInterface dialog, int which) {
-                                            if (input.getText() == null || input.getText().toString().isEmpty())
-                                                dialog.cancel();
-                                            else {
-                                                String matricula = input.getText().toString();
-                                                if (checkMatricula(matricula)) {//not implemented
-                                                    matriculas.clear();
-                                                    matriculas.add(matricula);
-                                                    atomicGetAll.set(false);
-                                                } else {
-                                                    Toast.makeText(MainActivity.this, "Not implemented", Toast.LENGTH_LONG).show();
-                                                }
-                                            }
-                                        }
-                                    })
-                                    .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                                        @Override
-                                        public void onClick(DialogInterface dialog, int which) {
-                                            dialog.cancel();
-                                        }
-                                    }).show();
+                            searchButtonModeFilter();
                         } else {
                             atomicGetAll.set(true);
                             updateMatricules();
                         }
+                    }
+                }).show();
+    }
+
+    private void searchButtonModeFilter() {
+        final EditText input = new EditText(MainActivity.this);
+        new AlertDialog.Builder(MainActivity.this)
+                .setCancelable(true)
+                .setView(input)
+                .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (input.getText() == null || input.getText().toString().isEmpty())
+                            dialog.cancel();
+                        else {
+                            String matricula = input.getText().toString();
+                            if (checkMatricula(matricula)) {//not implemented
+                                matriculas.clear();
+                                matriculas.add(matricula);
+                                atomicGetAll.set(false);
+                            } else {
+                                Toast.makeText(MainActivity.this, "Not implemented", Toast.LENGTH_LONG).show();
+                            }
+                        }
+                    }
+                })
+                .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.cancel();
                     }
                 }).show();
     }

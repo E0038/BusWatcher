@@ -16,11 +16,4 @@
               android:id="@+id/frag_bus_map"
               tools:context="org.e38.android.buswatcher.MapsActivity"
               android:name="com.google.android.gms.maps.SupportMapFragment"/>
-    <ProgressBar
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="invisible"
-            android:id="@+id/loadLinesProgres" android:layout_centerVertical="true"
-            android:layout_centerHorizontal="true"
-            android:indeterminate="false" android:max="100"/>
 </RelativeLayout>
