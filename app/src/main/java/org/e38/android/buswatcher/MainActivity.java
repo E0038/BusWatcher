@@ -42,7 +42,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public static final int GLOBAL_UPDATE_INTERVAL_DELAY = 2000 * 60;
     public static final int CONNECT_TIMEOUT = 10000;
     public static final int RESPONSE_OK = 200;
-    public static final int RESPONE_NO_CONTENT = 204;
     private static final String webServiceHost = "192.168.1.11";
     private static final int webServicePort = 39284;
     private static final String remotePath = "/BussesWebExternal/webresources/api.lbuses";
@@ -66,25 +65,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     mapsHandeler.post(new Runnable() {
                         @Override
                         public void run() {
-//                            lineProgres.setVisibility(View.VISIBLE);
                             clearMarkers();
                             processLines();
 //                            Toast.makeText(MainActivity.this, "updateLines", Toast.LENGTH_SHORT).show();
-//                            lineProgres.setVisibility(View.INVISIBLE);
-
                         }
 
                         private void processLines() {
-//                                float count = 0;
-//                                lineProgres.setProgress(0);
                             for (PolylineOptions line : recoridos) {
                                 LatLng inicio = line.getPoints().get(0);
                                 googleMap.addPolyline(line);
                                 googleMap.moveCamera(CameraUpdateFactory.newLatLng(inicio));
                                 googleMap.addMarker(new MarkerOptions().title("Inicio Recordido").position(inicio));
-//                                    lineProgres.setProgress((int) ((count++ / (float) recoridos.size()) * 100));
                             }
-//                                lineProgres.setProgress(100);
                         }
                     });
 
@@ -93,10 +85,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Log.d(MainActivity.class.getName(), e.toString(), e);
                 }
             }
-//            mapsHandeler.removeCallbacksAndMessages(null);
         }
     };
-    private String matricula = "";
 
     private void clearMarkers() {
         googleMap.clear();
@@ -132,8 +122,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
             lines.add(bussLine);
         }
-
-        return lines;//TODO all
+        return lines;
     }
 
     private JSONArray getAllBusses() throws InterruptedException, ExecutionException {
@@ -166,10 +155,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return (int) (lhs.getTime() - rhs.getTime());
             }
         });
-    }
-
-    private List<Buss> GetBusData() {
-        return null;// TODO: 4/1/16
     }
 
     @Override
@@ -312,10 +297,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         this.googleMap.setTrafficEnabled(true);
         this.googleMap.getUiSettings().setZoomControlsEnabled(true);//para poder hacer zoom con el emulador sin los gestos de zoom
         this.googleMap.getUiSettings().setAllGesturesEnabled(true);
-        // Add a marker in Sydney and move the camera
-//        LatLng sydney = new LatLng(-34, 151);
-//        googleMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-//        googleMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(37.422005, -122.084095)));//"latitut":37.422005,"logitut":-122.084095,"
         updateMatricules();
         watchThread = new Thread(BUS_UPDATER, "Watcher-Thread");
         watchThread.start();
