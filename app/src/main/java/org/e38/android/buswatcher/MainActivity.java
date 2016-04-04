@@ -242,6 +242,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             dialog.cancel();
                         else {
                             String matricula = input.getText().toString();
+                            Toast.makeText(MainActivity.this,"not implemented",Toast.LENGTH_LONG).show();
                             if (checkMatricula(matricula)) {
                                 cache.invalidate();
                                 matriculas.clear();
@@ -262,7 +263,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private boolean checkMatricula(String matricula) {
-        return getAllMatriculas().contains(matricula);
+        return false && getAllMatriculas().contains(matricula);// TODO: 4/4/16 reimplement
     }
 
     @Override
@@ -281,6 +282,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 matriculas.clear();
                 matriculas.addAll(getAllMatriculas());
             }
+        }else {
+            mapsHandeler.post(new Runnable() {
+                @Override
+                public void run() {
+                    Toast.makeText(MainActivity.this,"unable to connect host",Toast.LENGTH_LONG).show();
+                }
+            });
         }
     }
 
@@ -310,6 +318,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 ck = false;
             }
         }
+
         return ck;
     }
 
@@ -337,7 +346,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         return super.onCreateOptionsMenu(menu);
     }
 
-    private class RequestsCache {
+    private class RequestsCache{
         private static final long DEFAULT_MAX_MILIS = 20L * 60L * 1000L;//20min
         private final long MAX_MILIS;
         private JSONArray array = null;
