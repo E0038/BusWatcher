@@ -12,7 +12,6 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.ProgressBar;
 import android.widget.Toast;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -25,9 +24,9 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
 import org.apache.http.util.EntityUtils;
 import org.e38.android.buswatcher.model.BusPoint;
-import org.e38.android.buswatcher.model.Buss;
 import org.json.JSONArray;
 import org.json.JSONException;
 
@@ -42,21 +41,32 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public static final int GLOBAL_UPDATE_INTERVAL_DELAY = 2000 * 60;
     public static final int CONNECT_TIMEOUT = 10000;
     public static final int RESPONSE_OK = 200;
-    private static final String webServiceHost = "192.168.1.11";
-    private static final int webServicePort = 39284;
-    private static final String remotePath = "/BussesWebExternal/webresources/api.lbuses";
-    private static final String webServiceURL = "http://" + webServiceHost + ":" + webServicePort + remotePath;
+    public static final String WEB_SERVICE_HOST = "192.168.1.11";
+    public static final int WEB_SERVICE_PORT = 39284;
+    public static final String WEB_REMOTE_PATH = "/BussesWebExternal/webresources/api.lbuses";
+    public static final String WEB_SERVICE_URL = "http://" + WEB_SERVICE_HOST + ":" + WEB_SERVICE_PORT + WEB_REMOTE_PATH;
     private final Handler mapsHandeler = new Handler();
     private final Object matriculasLocker = new Object();
+    /**
+     * determines if Watch Thread sould end , is thread safe
+     */
     private final AtomicBoolean atomicStop = new AtomicBoolean(false);
+    /**
+     * determine filter mode true if get all data, false get only data associated with 1 matricula
+     */
     private final AtomicBoolean atomicGetAll = new AtomicBoolean(true);
     private final Object postLocker = new Object();
+    /**
+     * Thread safe matriculas
+     */
     private final List<String> matriculas = Collections.synchronizedList(new ArrayList<String>());
     private Thread watchThread = new Thread();
     private GoogleMap googleMap;
+    private RequestsCache cache = new RequestsCache();
     private final Runnable BUS_UPDATER = new Runnable() {
         @Override
         public void run() {
+            updateMatricules();
             while (!atomicStop.get()) {
                 try {
                     final List<PolylineOptions> recoridos = busesRecordido();
@@ -94,6 +104,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     /**
      * calcula el recorido de los buses , no se recomienda usar en el hilo de la aplicacion
      */
+    @SuppressWarnings("FeatureEnvy")
     private List<PolylineOptions> busesRecordido() throws ExecutionException, InterruptedException, IOException, JSONException {
         List<PolylineOptions> lines = new ArrayList<>();
         Map<String, List<BusPoint>> busesPointMap = new HashMap<>();
@@ -103,8 +114,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         List<BusPoint> points = BusPoint.fromJsonArray(jsonArray);
         //map points
         for (BusPoint point : points) {
-            if (matriculas.contains(point.getMatricula())) {
-                if (busesPointMap.containsKey(point.getMatricula())) {
+            if (matriculas.contains(point.getMatricula())) {// si esta en el filtro
+                if (busesPointMap.containsKey(point.getMatricula())) { // si esta en el mapa
                     busesPointMap.get(point.getMatricula()).add(point);
                 } else {
                     busesPointMap.put(point.getMatricula(), new ArrayList<>(Collections.singletonList(point)));
@@ -125,26 +136,33 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private JSONArray getAllBusses() throws InterruptedException, ExecutionException {
-        return new AsyncTask<Void, Void, JSONArray>() {
-            @Override
-            protected JSONArray doInBackground(Void... params) {
-                try {
-                    JSONArray array = new JSONArray("[]");
-                    HttpClient httpClient = new DefaultHttpClient();
-                    HttpGet del = new HttpGet(webServiceURL);
-                    del.setHeader("content-type", "application/json");
-                    HttpResponse response = httpClient.execute(del);
-                    if (response.getStatusLine().getStatusCode() == RESPONSE_OK) {
-                        String respStr = EntityUtils.toString(response.getEntity());
-                        array = new JSONArray(respStr);
+        if (!cache.isInValidState()) {
+            JSONArray array = new AsyncTask<Void, Void, JSONArray>() {
+                @Override
+                protected JSONArray doInBackground(Void... params) {
+                    try {
+                        JSONArray array = new JSONArray();
+                        HttpClient httpClient = new DefaultHttpClient();
+                        HttpGet del = new HttpGet(WEB_SERVICE_URL);
+                        if (!atomicGetAll.get()) {
+                            del.setParams(new BasicHttpParams().setParameter("matricula", matriculas.get(0)));
+                        }
+                        del.setHeader("content-type", "application/json");
+                        HttpResponse response = httpClient.execute(del);
+                        if (response.getStatusLine().getStatusCode() == RESPONSE_OK) {
+                            String respStr = EntityUtils.toString(response.getEntity());
+                            array = new JSONArray(respStr);
+                        }
+                        return array;
+                    } catch (IOException | JSONException e) {
+                        e.printStackTrace();
+                        return new JSONArray();
                     }
-                    return array;
-                } catch (IOException | JSONException e) {
-                    e.printStackTrace();
-                    return new JSONArray();
                 }
-            }
-        }.execute().get();
+            }.execute().get();
+            cache.setArray(array);
+        }
+        return cache.getArray();
     }
 
     private void sortBussPointsByTime(List<BusPoint> points) {
@@ -154,6 +172,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return (int) (lhs.getTime() - rhs.getTime());
             }
         });
+    }
+
+    @Override
+    public void onLowMemory() {
+        cache.invalidate();
+        super.onLowMemory();
     }
 
     @Override
@@ -167,12 +191,25 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.frag_bus_map);
         mapFragment.getMapAsync(this);
         //noinspection ConstantConditions
-        findViewById(R.id.menu_add).setOnClickListener(new View.OnClickListener() {
+        findViewById(R.id.menu_search).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 searchAction(view);
             }
         });
+    }
+
+    @Override
+    protected void onDestroy() {
+        atomicStop.set(true);
+        try {
+            watchThread.interrupt();
+            watchThread.join();
+        } catch (InterruptedException e) {
+            Log.e(MainActivity.class.getName(), e.toString());
+        }
+        mapsHandeler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 
     private void searchAction(View view) {
@@ -185,6 +222,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         if (modeAll) {
                             searchButtonModeFilter();
                         } else {
+                            cache.invalidate();
                             atomicGetAll.set(true);
                             updateMatricules();
                         }
@@ -204,12 +242,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             dialog.cancel();
                         else {
                             String matricula = input.getText().toString();
-                            if (checkMatricula(matricula)) {//not implemented
+                            if (checkMatricula(matricula)) {
+                                cache.invalidate();
                                 matriculas.clear();
                                 matriculas.add(matricula);
                                 atomicGetAll.set(false);
                             } else {
-                                Toast.makeText(MainActivity.this, "Not implemented", Toast.LENGTH_LONG).show();
+                                Toast.makeText(MainActivity.this, "Matricula no valida o sin datos", Toast.LENGTH_LONG).show();
                             }
                         }
                     }
@@ -223,7 +262,17 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private boolean checkMatricula(String matricula) {
-        return false;//TODO write
+        return getAllMatriculas().contains(matricula);
+    }
+
+    @Override
+    public void onMapReady(final GoogleMap map) {
+        this.googleMap = map;
+        this.googleMap.setTrafficEnabled(true);
+        this.googleMap.getUiSettings().setZoomControlsEnabled(true);//para poder hacer zoom con el emulador sin los gestos de zoom
+        this.googleMap.getUiSettings().setAllGesturesEnabled(true);
+        watchThread = new Thread(BUS_UPDATER, "Watcher-Thread");
+        watchThread.start();
     }
 
     private void updateMatricules() {
@@ -239,7 +288,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         boolean ck;
         if (ck = AndroidUtils.isNetWorkAvailable(this)) {
             try {
-                HttpURLConnection connection = (HttpURLConnection) new URL("http://" + webServiceHost + ":" + webServicePort).openConnection();
+                HttpURLConnection connection = (HttpURLConnection) new URL("http://" + WEB_SERVICE_HOST + ":" + WEB_SERVICE_PORT).openConnection();
                 connection.setRequestProperty("User-Agent", "Firefox 40.0: Mozilla/5.0 (X11; Linux x86_64; rv:40.0) Gecko/20100101 Firefox/40.0Linux");
                 connection.setRequestProperty("Connection", "close");
                 connection.setConnectTimeout(CONNECT_TIMEOUT);
@@ -264,8 +313,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         return ck;
     }
 
+    @SuppressWarnings("FeatureEnvy")
     private Collection<? extends String> getAllMatriculas() {
-        List<String> tmp_matricules = new ArrayList<>();
+        Collection<String> tmp_matricules = new ArrayList<>();
         try {
             List<BusPoint> busPoints;
             JSONArray jsonArray = getAllBusses();
@@ -275,6 +325,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     if (!tmp_matricules.contains(point.getMatricula())) tmp_matricules.add(point.getMatricula());
                 }
             }
+
         } catch (InterruptedException | ExecutionException | JSONException e) {
             Log.e(MainActivity.class.getName(), "webservice error", e);
         }
@@ -282,31 +333,51 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     @Override
-    protected void onDestroy() {
-        atomicStop.set(true);
-        try {
-            watchThread.join();
-        } catch (InterruptedException e) {
-            Log.e(MainActivity.class.getName(), e.toString());
-        }
-        mapsHandeler.removeCallbacksAndMessages(null);
-        super.onDestroy();
-    }
-
-    @Override
-    public void onMapReady(final GoogleMap map) {
-        this.googleMap = map;
-        this.googleMap.setTrafficEnabled(true);
-        this.googleMap.getUiSettings().setZoomControlsEnabled(true);//para poder hacer zoom con el emulador sin los gestos de zoom
-        this.googleMap.getUiSettings().setAllGesturesEnabled(true);
-        updateMatricules();
-        watchThread = new Thread(BUS_UPDATER, "Watcher-Thread");
-        watchThread.start();
-    }
-
-    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         return super.onCreateOptionsMenu(menu);
     }
 
+    private class RequestsCache {
+        private static final long DEFAULT_MAX_MILIS = 20L * 60L * 1000L;//20min
+        private final long MAX_MILIS;
+        private JSONArray array = null;
+        private long lastChange = 0l;
+//        private boolean lastMode = atomicGetAll.get();
+
+        private RequestsCache() {
+            MAX_MILIS = DEFAULT_MAX_MILIS;
+        }
+
+        private RequestsCache(long MAX_MILIS) {
+            this.MAX_MILIS = MAX_MILIS;
+        }
+
+        /**
+         * comprueba si el estado de la cache es valido se consideran validos cuando hay datos y estos
+         * no estan obsoletos
+         *
+         * @return true si es valido false sino
+         */
+        public boolean isInValidState() {
+            return array != null && array.length() > 0
+                    && (System.currentTimeMillis() - lastChange) <= MAX_MILIS;
+        }
+
+        /**
+         * invalida la cache y vacia su contenido
+         */
+        private void invalidate() {
+            array = null;//force gc
+            lastChange = 0L;
+        }
+
+        public JSONArray getArray() {
+            return array;
+        }
+
+        public void setArray(JSONArray array) {
+            lastChange = System.currentTimeMillis();
+            this.array = array;
+        }
+    }
 }
