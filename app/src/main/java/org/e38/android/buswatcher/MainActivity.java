@@ -41,9 +41,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public static final int GLOBAL_UPDATE_INTERVAL_DELAY = 2000 * 60;
     public static final int CONNECT_TIMEOUT = 10000;
     public static final int RESPONSE_OK = 200;
-    public static final String WEB_SERVICE_HOST = "192.168.1.11";
+    public static final String WEB_SERVICE_HOST = "192.168.120.112";
     public static final int WEB_SERVICE_PORT = 39284;
-    public static final String WEB_REMOTE_PATH = "/BussesWebExternal/webresources/api.lbuses";
+    public static final String WEB_REMOTE_PATH = "/bussesLocal/webresources/api.lbuses";
     public static final String WEB_SERVICE_URL = "http://" + WEB_SERVICE_HOST + ":" + WEB_SERVICE_PORT + WEB_REMOTE_PATH;
     private final Handler mapsHandeler = new Handler();
     private final Object matriculasLocker = new Object();
@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         public void run() {
                             clearMarkers();
                             processLines();
-//                            Toast.makeText(MainActivity.this, "updateLines", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(MainActivity.this, "updateLines", Toast.LENGTH_SHORT).show();
                         }
 
                         private void processLines() {
@@ -145,7 +145,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         HttpClient httpClient = new DefaultHttpClient();
                         HttpGet del = new HttpGet(WEB_SERVICE_URL);
                         if (!atomicGetAll.get()) {
-                            del.setParams(new BasicHttpParams().setParameter("matricula", matriculas.get(0)));
+                            del.setParams(new BasicHttpParams().setParameter("matricula", matriculas.get(0)).setParameter("to", 0));
                         }
                         del.setHeader("content-type", "application/json");
                         HttpResponse response = httpClient.execute(del);
@@ -242,7 +242,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             dialog.cancel();
                         else {
                             String matricula = input.getText().toString();
-                            Toast.makeText(MainActivity.this,"not implemented",Toast.LENGTH_LONG).show();
                             if (checkMatricula(matricula)) {
                                 cache.invalidate();
                                 matriculas.clear();
@@ -263,7 +262,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private boolean checkMatricula(String matricula) {
-        return false && getAllMatriculas().contains(matricula);// TODO: 4/4/16 reimplement
+        return getAllMatriculas().contains(matricula);
     }
 
     @Override
@@ -282,11 +281,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 matriculas.clear();
                 matriculas.addAll(getAllMatriculas());
             }
-        }else {
+        } else {
             mapsHandeler.post(new Runnable() {
                 @Override
                 public void run() {
-                    Toast.makeText(MainActivity.this,"unable to connect host",Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, "unable to connect host", Toast.LENGTH_LONG).show();
                 }
             });
         }
@@ -346,8 +345,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         return super.onCreateOptionsMenu(menu);
     }
 
-    private class RequestsCache{
-        private static final long DEFAULT_MAX_MILIS = 20L * 60L * 1000L;//20min
+    private class RequestsCache {
+        private static final long DEFAULT_MAX_MILIS = 5L * 60L * 1000L;//5min
         private final long MAX_MILIS;
         private JSONArray array = null;
         private long lastChange = 0l;
